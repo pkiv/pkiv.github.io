@@ -5,6 +5,21 @@
  */
 
 module.exports = {
-  /* Your site config here */
-  plugins: [],
-}
+    siteMetadata: {
+        title: `Paul Klein`,
+        description: `Code creator and problem solver .`,
+        author: `@pkiv`,
+    },
+    plugins: [
+        `gatsby-plugin-styled-components`,
+        {
+            resolve: 'gatsby-plugin-web-font-loader',
+            options: {
+                custom: {
+                    families: ['Aeonik'],
+                    urls: ['/fonts/fonts.css'],
+                },
+            },
+        },
+    ],
+};
