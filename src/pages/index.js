@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
+import { Helmet } from "react-helmet"
 
 const Content = styled.div`
     display: flex;
@@ -157,6 +158,10 @@ const TalkButton = styled.div`
 export default function Index() {
     return (
         <Content>
+            <Helmet>
+            <meta charSet="utf-8" />
+            <title>Paul Klein</title>
+            </Helmet>
             <Icon
                 onClick={() =>
                     window.scrollTo({ top: 0, left: 0, behavior: 'smooth' })
