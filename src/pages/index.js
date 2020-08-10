@@ -7,6 +7,7 @@ const Content = styled.div`
     font-family: 'Aeonik';
     font-style: normal;
     font-weight: 500;
+    margin-bottom: 10%;
 `;
 
 const Icon = styled.div`
@@ -28,8 +29,8 @@ const Icon = styled.div`
 `;
 const Hero = styled.div`
     align-self: center;
-    margin-left: 5%;
-    margin-right: 5%;
+    margin-left: 12%;
+    margin-right: 12%;
 `;
 const Name = styled.div`
     text-align: left;
@@ -56,8 +57,6 @@ const Main = styled.div`
     align-self: center;
     display: flex;
     flex-direction: column;
-    margin-left: 8%;
-    margin-right: 8%;
     margin-top: 5%;
 `;
 const BoxGrid = styled.div`
@@ -66,6 +65,14 @@ const BoxGrid = styled.div`
     flex-wrap: wrap;
     justify-content: space-between;
     margin-top: 5%;
+    @media screen and (min-width: 601px) {
+        margin-left: 8%;
+        margin-right: 8%;
+    }
+    @media screen and (max-width: 600px) {
+        margin-left: 2%;
+        margin-right: 2%;
+    }
 
     .box {
         width: 32%;
@@ -128,18 +135,22 @@ const BottomLine = styled.div`
 
 const TalkButton = styled.div`
     background: #d56d6b;
-    border-radius: 30px;
     align-self: center;
     text-align: center;
-    width: 25%;
-    padding-top: 1.2%;
-    padding-bottom: 1.2%;
     cursor: pointer;
     @media screen and (min-width: 601px) {
         font-size: 36px;
+        border-radius: 30px;
+        width: 25%;
+        padding-top: 1.2%;
+        padding-bottom: 1.2%;
     }
     @media screen and (max-width: 600px) {
-        font-size: 12px;
+        font-size: 18px;
+        border-radius: 30px;
+        width: 35%;
+        padding-top: 1.5%;
+        padding-bottom: 1.5%;
     }
 `;
 

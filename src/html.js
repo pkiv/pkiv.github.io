@@ -12,6 +12,12 @@ export default function HTML(props) {
                     content="width=device-width, initial-scale=1, shrink-to-fit=no"
                 />
                 {props.headComponents}
+                <link
+                    rel="preload"
+                    href="Aeonik-Medium.ttf"
+                    as="font"
+                    type="font"
+                ></link>
             </head>
             <body {...props.bodyAttributes}>
                 {props.preBodyComponents}
