@@ -59,6 +59,7 @@ const Main = styled.div`
     display: flex;
     flex-direction: column;
     margin-top: 5%;
+    max-width: 70%;
 `;
 const BoxGrid = styled.div`
     display: flex;
