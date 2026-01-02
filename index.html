@@ -155,7 +155,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // ASCII characters from dark to light
+        // ASCII characters from dark to light (last char is space for white bg)
         const ASCII_CHARS = '@%#*+=-:. ';
 
         // Configuration
@@ -306,12 +306,17 @@
                         const i = (y * cols + x) * 4;
                         const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
 
-                        // Apply hole fade
-                        const adjustedBrightness = brightness + smoothHole * 200;
+                        // Pure white background = space (sky above horizon)
+                        if (brightness > 250) {
+                            ascii += ' ';
+                        } else {
+                            // Apply hole fade
+                            const adjustedBrightness = brightness + smoothHole * 200;
 
-                        // Map brightness to ASCII (invert so dark = dense chars)
-                        const charIndex = Math.floor((adjustedBrightness / 255) * (ASCII_CHARS.length - 1));
-                        ascii += ASCII_CHARS[Math.max(0, Math.min(ASCII_CHARS.length - 1, charIndex))];
+                            // Map brightness to ASCII (invert so dark = dense chars)
+                            const charIndex = Math.floor((adjustedBrightness / 255) * (ASCII_CHARS.length - 1));
+                            ascii += ASCII_CHARS[Math.max(0, Math.min(ASCII_CHARS.length - 1, charIndex))];
+                        }
                     }
                 }
                 ascii += '\n';
