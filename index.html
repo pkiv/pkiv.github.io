@@ -10,11 +10,7 @@
             src: url('Aeonik-Medium.ttf') format('truetype');
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         html, body {
             width: 100%;
@@ -23,46 +19,40 @@
             overflow: hidden;
         }
 
-        #wave {
+        #ascii {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 60%;
-            font-family: monospace;
-            font-size: 10px;
-            line-height: 12px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: 'Courier New', monospace;
+            font-size: 6px;
+            line-height: 7px;
             white-space: pre;
             color: #000;
-            overflow: hidden;
             z-index: 1;
+            letter-spacing: 1px;
         }
 
         #info-layer {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             pointer-events: none;
             z-index: 0;
             opacity: 0;
-            transition: opacity 0.3s ease;
+            transition: opacity 0.3s;
         }
 
-        #info-layer.visible {
-            opacity: 1;
-        }
+        #info-layer.visible { opacity: 1; }
 
         .info-content {
             text-align: center;
             color: #000;
-            font-family: 'Aeonik', 'Helvetica Neue', Arial, sans-serif;
-            background: rgba(255, 255, 255, 0.95);
+            font-family: 'Aeonik', sans-serif;
+            background: rgba(255,255,255,0.95);
             padding: 2rem 3rem;
             border-radius: 4px;
         }
@@ -71,7 +61,6 @@
             font-size: clamp(2rem, 6vw, 4rem);
             font-weight: 500;
             margin-bottom: 0.5rem;
-            letter-spacing: -0.02em;
         }
 
         .info-content p {
@@ -80,22 +69,13 @@
             margin-bottom: 0.25rem;
         }
 
-        .info-content .email {
-            margin-top: 1rem;
-            opacity: 1;
-        }
+        .info-content .email { margin-top: 1rem; opacity: 1; }
 
         .info-content a {
             color: #000;
             text-decoration: none;
             border-bottom: 1px solid rgba(0,0,0,0.3);
-            padding-bottom: 2px;
-            transition: border-color 0.3s;
             pointer-events: auto;
-        }
-
-        .info-content a:hover {
-            border-color: #000;
         }
 
         .hint {
@@ -104,10 +84,12 @@
             left: 50%;
             transform: translateX(-50%);
             font-size: 10px;
-            color: #999;
+            color: #aaa;
             z-index: 10;
             font-family: monospace;
         }
+
+        canvas { display: none; }
     </style>
 </head>
 <body>
@@ -122,95 +104,197 @@
         </div>
     </div>
 
-    <pre id="wave"></pre>
-
+    <pre id="ascii"></pre>
     <div class="hint">hover to reveal</div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        const chars = '~-=+*#%@';
+        const ASCII = ' .-:=+*#%@';
+        const COLS = 160;
+        const ROWS = 80;
+
+        let scene, camera, renderer, wave;
         let time = 0;
-        let mouse = { x: -1000, y: -1000 };
-        let active = false;
+        let mouse = { x: -9999, y: -9999 };
+        let mouseActive = false;
 
-        function render() {
-            const w = Math.floor(window.innerWidth / 6);
-            const h = Math.floor(window.innerHeight * 0.6 / 12);
-            let out = '';
-            let hole = false;
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xffffff);
 
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                    const px = x * 6 + 3;
-                    const py = window.innerHeight * 0.4 + y * 12 + 6;
+            // Isometric camera
+            const aspect = COLS / ROWS;
+            const d = 20;
+            camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+            camera.position.set(40, 30, 40);
+            camera.lookAt(0, 0, 0);
 
-                    const dx = px - mouse.x;
-                    const dy = py - mouse.y;
-                    const dist = Math.sqrt(dx*dx + dy*dy);
-                    const holeAmt = active ? Math.max(0, 1 - dist/100) : 0;
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+            renderer.setSize(COLS, ROWS);
+            document.body.appendChild(renderer.domElement);
 
-                    if (holeAmt > 0.3) hole = true;
+            // Create Great Wave geometry
+            createWave();
 
-                    if (holeAmt > 0.5) {
-                        out += ' ';
-                        continue;
-                    }
-
-                    const nx = x / w;
-                    const ny = y / h;
-
-                    // Wave surface
-                    const wave =
-                        Math.sin(nx * 6 + time) * 0.3 +
-                        Math.sin(nx * 10 - time * 0.7) * 0.2 +
-                        Math.sin(nx * 4 + time * 1.3) * 0.15;
-
-                    const surface = 0.3 + wave * 0.3;
-
-                    if (ny < surface) {
-                        out += ' ';
-                    } else {
-                        const depth = (ny - surface) / (1 - surface);
-                        let density = depth * 0.8;
-
-                        // Wave lines
-                        density += Math.sin(nx * 20 + ny * 10 + time * 0.5) * 0.1;
-
-                        // Fade with mouse
-                        density *= (1 - holeAmt);
-
-                        const idx = Math.floor(density * (chars.length - 1));
-                        out += chars[Math.max(0, Math.min(chars.length - 1, idx))];
-                    }
+            // Events
+            document.addEventListener('mousemove', e => {
+                mouse.x = e.clientX;
+                mouse.y = e.clientY;
+                mouseActive = true;
+            });
+            document.addEventListener('mouseleave', () => mouseActive = false);
+            document.addEventListener('touchmove', e => {
+                if (e.touches[0]) {
+                    mouse.x = e.touches[0].clientX;
+                    mouse.y = e.touches[0].clientY;
+                    mouseActive = true;
                 }
-                out += '\n';
-            }
+            }, { passive: true });
+            document.addEventListener('touchend', () => mouseActive = false);
 
-            document.getElementById('wave').textContent = out;
-            document.getElementById('info-layer').classList.toggle('visible', hole);
-
-            time += 0.03;
-            requestAnimationFrame(render);
+            animate();
         }
 
-        document.addEventListener('mousemove', e => {
-            mouse.x = e.clientX;
-            mouse.y = e.clientY;
-            active = true;
-        });
+        function createWave() {
+            // Create a curved surface for the Great Wave
+            const geometry = new THREE.PlaneGeometry(60, 40, 120, 80);
+            const positions = geometry.attributes.position;
 
-        document.addEventListener('mouseleave', () => active = false);
+            // Store original positions for animation
+            geometry.userData.original = new Float32Array(positions.array);
 
-        document.addEventListener('touchmove', e => {
-            if (e.touches[0]) {
-                mouse.x = e.touches[0].clientX;
-                mouse.y = e.touches[0].clientY;
-                active = true;
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x000000,
+                wireframe: true
+            });
+
+            wave = new THREE.Mesh(geometry, material);
+            wave.rotation.x = -Math.PI / 2;
+            wave.position.y = -5;
+            scene.add(wave);
+        }
+
+        function updateWave() {
+            const positions = wave.geometry.attributes.position;
+            const original = wave.geometry.userData.original;
+
+            for (let i = 0; i < positions.count; i++) {
+                const ox = original[i * 3];
+                const oy = original[i * 3 + 1];
+
+                // Normalize coordinates
+                const nx = (ox + 30) / 60; // 0 to 1
+                const ny = (oy + 20) / 40; // 0 to 1
+
+                let z = 0;
+
+                // Main wave crest - the big curl (like Hokusai's wave)
+                const crestX = 0.3;
+                const distFromCrest = nx - crestX;
+
+                // Create the curling wave shape
+                if (nx < 0.5) {
+                    // Rising part of the wave
+                    const rise = Math.pow(Math.max(0, 1 - Math.abs(distFromCrest) * 3), 2);
+                    z += rise * 18;
+
+                    // The curl at the top
+                    if (nx > 0.2 && nx < 0.45) {
+                        const curlAmount = Math.sin((nx - 0.2) * Math.PI / 0.25);
+                        z += curlAmount * 6 * Math.exp(-distFromCrest * distFromCrest * 20);
+                    }
+                }
+
+                // Secondary wave
+                const wave2X = 0.7;
+                const dist2 = Math.abs(nx - wave2X);
+                z += Math.exp(-dist2 * dist2 * 30) * 8;
+
+                // Third smaller wave
+                const wave3X = 0.85;
+                const dist3 = Math.abs(nx - wave3X);
+                z += Math.exp(-dist3 * dist3 * 50) * 4;
+
+                // Base ocean with flowing motion
+                z += Math.sin(nx * 8 + time) * 1.5;
+                z += Math.sin(ny * 6 + time * 0.8) * 1;
+                z += Math.sin((nx + ny) * 4 + time * 1.2) * 0.8;
+
+                // Variation along Y axis
+                const yVar = Math.sin(ny * Math.PI) * 0.8;
+                z *= (0.6 + yVar * 0.4);
+
+                positions.setZ(i, z);
             }
-        }, { passive: true });
 
-        document.addEventListener('touchend', () => active = false);
+            positions.needsUpdate = true;
+            wave.geometry.computeVertexNormals();
+        }
 
-        render();
+        function renderASCII() {
+            renderer.render(scene, camera);
+
+            const gl = renderer.getContext();
+            const pixels = new Uint8Array(COLS * ROWS * 4);
+            gl.readPixels(0, 0, COLS, ROWS, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+
+            // Get ASCII element dimensions for mouse mapping
+            const asciiEl = document.getElementById('ascii');
+            const rect = asciiEl.getBoundingClientRect();
+            const charW = rect.width / COLS;
+            const charH = rect.height / ROWS;
+
+            let output = '';
+            let hasHole = false;
+
+            for (let y = ROWS - 1; y >= 0; y--) {
+                for (let x = 0; x < COLS; x++) {
+                    // Map to screen position
+                    const screenX = rect.left + x * charW + charW / 2;
+                    const screenY = rect.top + (ROWS - 1 - y) * charH + charH / 2;
+
+                    // Mouse hole effect
+                    const dx = screenX - mouse.x;
+                    const dy = screenY - mouse.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const hole = mouseActive ? Math.pow(Math.max(0, 1 - dist / 80), 2) : 0;
+
+                    if (hole > 0.3) hasHole = true;
+
+                    if (hole > 0.5) {
+                        output += ' ';
+                    } else {
+                        const i = (y * COLS + x) * 4;
+                        const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+
+                        // White background = space
+                        if (brightness > 250) {
+                            output += ' ';
+                        } else {
+                            // Darker = denser character
+                            const adjusted = brightness + hole * 200;
+                            const idx = Math.floor((adjusted / 255) * (ASCII.length - 1));
+                            output += ASCII[Math.max(0, Math.min(ASCII.length - 1, idx))];
+                        }
+                    }
+                }
+                output += '\n';
+            }
+
+            document.getElementById('ascii').textContent = output;
+            document.getElementById('info-layer').classList.toggle('visible', hasHole);
+        }
+
+        function animate() {
+            time += 0.02;
+            updateWave();
+            renderASCII();
+            requestAnimationFrame(animate);
+        }
+
+        init();
     </script>
 </body>
 </html>
