@@ -31,18 +31,15 @@
             height: 100%;
             z-index: 1;
             font-family: 'Courier New', monospace;
-            font-size: 10px;
-            line-height: 10px;
+            font-size: 12px;
+            line-height: 14px;
             white-space: pre;
             color: #000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             overflow: hidden;
         }
 
         #ascii-output {
-            letter-spacing: 2px;
+            letter-spacing: 1px;
         }
 
         #info-layer {
@@ -116,10 +113,6 @@
             font-family: 'Courier New', monospace;
             letter-spacing: 1px;
         }
-
-        canvas {
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -135,96 +128,33 @@
     </div>
 
     <div id="ascii-container">
-        <div id="ascii-output"></div>
+        <pre id="ascii-output"></pre>
     </div>
 
     <div class="hint">hover to reveal</div>
 
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-        }
-    }
-    </script>
-
-    <script type="module">
-        import * as THREE from 'three';
-
-        // ASCII gradient from dense to sparse
-        const ASCII_CHARS = ' .:-=+*#%@';
+    <script>
+        // ASCII characters from light to dark
+        const ASCII_CHARS = ' .,:;+*?%S#@';
 
         // Configuration
         const config = {
-            charWidth: 6,
-            charHeight: 10,
-            waveSpeed: 1.2,
-            waveAmplitude: 2.5,
-            waveFrequency: 0.15,
-            mouseRadius: 120,
-            depth: 8
+            charWidth: 7,
+            charHeight: 14,
+            waveSpeed: 0.8,
+            mouseRadius: 100
         };
 
         // State
-        let width, height, cols, rows;
+        let cols, rows;
         let mouse = { x: -1000, y: -1000 };
         let smoothMouse = { x: -1000, y: -1000 };
         let isMouseActive = false;
         let time = 0;
-
-        // Three.js setup
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-
-        // Hidden canvas for 3D rendering
-        renderer.setPixelRatio(1);
-        renderer.setClearColor(0xffffff, 1);
-        document.body.appendChild(renderer.domElement);
-
-        // Create wave geometry
-        let geometry, material, points;
-
-        function createWaveField() {
-            if (points) {
-                scene.remove(points);
-                geometry.dispose();
-                material.dispose();
-            }
-
-            const positions = [];
-            const gridSize = 100;
-            const spacing = 0.5;
-
-            for (let i = 0; i < gridSize; i++) {
-                for (let j = 0; j < gridSize; j++) {
-                    const x = (i - gridSize / 2) * spacing;
-                    const z = (j - gridSize / 2) * spacing;
-                    positions.push(x, 0, z);
-                }
-            }
-
-            geometry = new THREE.BufferGeometry();
-            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-
-            material = new THREE.PointsMaterial({
-                color: 0x000000,
-                size: 0.15,
-                sizeAttenuation: true
-            });
-
-            points = new THREE.Points(geometry, material);
-            scene.add(points);
-        }
+        let animationId;
 
         function init() {
             resize();
-            createWaveField();
-
-            camera.position.set(0, 25, 35);
-            camera.lookAt(0, 0, 0);
-
             window.addEventListener('resize', resize);
 
             document.addEventListener('mousemove', (e) => {
@@ -253,88 +183,75 @@
         }
 
         function resize() {
-            width = window.innerWidth;
-            height = window.innerHeight;
-
-            cols = Math.floor(width / config.charWidth);
-            rows = Math.floor(height / config.charHeight);
-
-            renderer.setSize(cols, rows);
-            camera.aspect = cols / rows;
-            camera.updateProjectionMatrix();
+            cols = Math.floor(window.innerWidth / config.charWidth);
+            rows = Math.floor(window.innerHeight / config.charHeight);
         }
 
-        function updateWave() {
-            if (!points) return;
+        function getWaveValue(x, y, t) {
+            // Normalized coordinates
+            const nx = x / cols;
+            const ny = y / rows;
 
-            const positions = geometry.attributes.position.array;
-            const gridSize = 100;
+            // Multiple overlapping waves for organic feel
+            let value = 0;
 
-            for (let i = 0; i < gridSize; i++) {
-                for (let j = 0; j < gridSize; j++) {
-                    const index = (i * gridSize + j) * 3;
-                    const x = positions[index];
-                    const z = positions[index + 2];
+            // Primary horizontal wave
+            value += Math.sin(nx * 8 + t) * 0.3;
 
-                    // Multiple overlapping waves
-                    let y = 0;
-                    y += Math.sin(x * config.waveFrequency + time) * config.waveAmplitude;
-                    y += Math.sin(z * config.waveFrequency * 0.8 + time * 0.7) * config.waveAmplitude * 0.6;
-                    y += Math.sin((x + z) * config.waveFrequency * 0.5 + time * 1.3) * config.waveAmplitude * 0.4;
-                    y += Math.sin(Math.sqrt(x * x + z * z) * config.waveFrequency * 0.4 + time * 0.5) * config.waveAmplitude * 0.5;
+            // Secondary vertical wave
+            value += Math.sin(ny * 6 + t * 0.7) * 0.25;
 
-                    positions[index + 1] = y;
-                }
-            }
+            // Diagonal wave
+            value += Math.sin((nx + ny) * 5 + t * 1.2) * 0.2;
 
-            geometry.attributes.position.needsUpdate = true;
+            // Circular ripple from center
+            const cx = nx - 0.5;
+            const cy = ny - 0.5;
+            const dist = Math.sqrt(cx * cx + cy * cy);
+            value += Math.sin(dist * 12 - t * 0.8) * 0.25;
+
+            // Normalize to 0-1
+            return (value + 1) / 2;
         }
 
-        function renderToAscii() {
-            renderer.render(scene, camera);
-
-            const gl = renderer.getContext();
-            const pixels = new Uint8Array(cols * rows * 4);
-            gl.readPixels(0, 0, cols, rows, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-
-            let ascii = '';
+        function animate() {
+            time += 0.02 * config.waveSpeed;
 
             // Smooth mouse position
-            smoothMouse.x += (mouse.x - smoothMouse.x) * 0.15;
-            smoothMouse.y += (mouse.y - smoothMouse.y) * 0.15;
+            smoothMouse.x += (mouse.x - smoothMouse.x) * 0.12;
+            smoothMouse.y += (mouse.y - smoothMouse.y) * 0.12;
 
-            const infoLayer = document.getElementById('info-layer');
+            let ascii = '';
             let hasHole = false;
 
-            // Read pixels and convert to ASCII (flip Y since WebGL is bottom-up)
-            for (let y = rows - 1; y >= 0; y--) {
+            for (let y = 0; y < rows; y++) {
                 for (let x = 0; x < cols; x++) {
+                    // Pixel position
                     const pixelX = x * config.charWidth + config.charWidth / 2;
-                    const pixelY = (rows - 1 - y) * config.charHeight + config.charHeight / 2;
+                    const pixelY = y * config.charHeight + config.charHeight / 2;
 
-                    // Calculate distance from mouse
+                    // Distance from mouse
                     const dx = pixelX - smoothMouse.x;
                     const dy = pixelY - smoothMouse.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
                     // Mouse hole effect
                     const holeAmount = isMouseActive ? Math.max(0, 1 - distance / config.mouseRadius) : 0;
+                    const smoothHole = holeAmount * holeAmount; // Ease the falloff
 
-                    if (holeAmount > 0.5) {
+                    if (smoothHole > 0.3) {
                         hasHole = true;
                     }
 
-                    if (holeAmount > 0.8) {
+                    if (smoothHole > 0.7) {
                         ascii += ' ';
                     } else {
-                        const i = (y * cols + x) * 4;
-                        // Invert brightness (white bg, black dots)
-                        const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+                        // Get wave value and apply hole fade
+                        const waveValue = getWaveValue(x, y, time);
+                        const adjustedValue = waveValue * (1 - smoothHole);
 
-                        // Apply hole effect to brightness
-                        const adjustedBrightness = brightness + holeAmount * 255;
-
-                        const charIndex = Math.floor((1 - Math.min(adjustedBrightness, 255) / 255) * (ASCII_CHARS.length - 1));
+                        // Map to ASCII character
+                        const charIndex = Math.floor(adjustedValue * (ASCII_CHARS.length - 1));
                         ascii += ASCII_CHARS[Math.max(0, Math.min(ASCII_CHARS.length - 1, charIndex))];
                     }
                 }
@@ -343,21 +260,15 @@
 
             document.getElementById('ascii-output').textContent = ascii;
 
-            // Show/hide info layer based on mouse hole
+            // Show/hide info layer
+            const infoLayer = document.getElementById('info-layer');
             if (hasHole) {
                 infoLayer.classList.add('visible');
             } else {
                 infoLayer.classList.remove('visible');
             }
-        }
 
-        function animate() {
-            time += 0.02 * config.waveSpeed;
-
-            updateWave();
-            renderToAscii();
-
-            requestAnimationFrame(animate);
+            animationId = requestAnimationFrame(animate);
         }
 
         init();
