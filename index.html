@@ -32,25 +32,25 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            padding: 40px 60px;
+            padding: 20px 40px;
         }
 
         #ascii-container {
             width: 100%;
             height: 100%;
             font-family: 'Courier New', monospace;
-            font-size: 10px;
-            line-height: 12px;
+            font-size: 8px;
+            line-height: 8px;
             white-space: pre;
             color: #000;
             overflow: hidden;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-end;
         }
 
         #ascii-output {
-            letter-spacing: 1px;
+            letter-spacing: 0px;
         }
 
         #info-layer {
@@ -124,13 +124,6 @@
             font-family: 'Courier New', monospace;
             letter-spacing: 1px;
         }
-
-        #three-canvas {
-            position: fixed;
-            top: -9999px;
-            left: -9999px;
-            visibility: hidden;
-        }
     </style>
 </head>
 <body>
@@ -153,223 +146,28 @@
 
     <div class="hint">hover to reveal</div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
-        // ASCII characters from dark to light (last char is space for white bg)
-        const ASCII_CHARS = '@%#*+=-:. ';
+        // ASCII characters from light to dark
+        const ASCII_CHARS = ' .`\'^",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
 
         // Configuration
         const config = {
-            charWidth: 6,
-            charHeight: 12,
-            margin: { top: 40, right: 60, bottom: 40, left: 60 },
-            waveSpeed: 1.0,
-            waveHeight: 3,
-            mouseRadius: 120
+            charWidth: 5,
+            charHeight: 8,
+            waveSpeed: 0.4,
+            mouseRadius: 80
         };
 
         // State
-        let cols, rows, renderWidth, renderHeight;
+        let cols, rows;
         let mouse = { x: -1000, y: -1000 };
         let smoothMouse = { x: -1000, y: -1000 };
         let isMouseActive = false;
         let time = 0;
 
-        // Three.js components
-        let scene, camera, renderer, plane;
-
-        function initThree() {
-            // Scene
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0xffffff);
-
-            // Isometric-style camera
-            const aspect = cols / rows;
-            const frustumSize = 20;
-            camera = new THREE.OrthographicCamera(
-                -frustumSize * aspect / 2,
-                frustumSize * aspect / 2,
-                frustumSize / 2,
-                -frustumSize / 2,
-                0.1,
-                1000
-            );
-
-            // Isometric angle
-            camera.position.set(20, 20, 20);
-            camera.lookAt(0, 0, 0);
-
-            // Renderer
-            renderer = new THREE.WebGLRenderer({ antialias: false });
-            renderer.setSize(cols, rows);
-            renderer.setPixelRatio(1);
-            document.body.appendChild(renderer.domElement);
-            renderer.domElement.id = 'three-canvas';
-
-            // Create wave plane
-            const geometry = new THREE.PlaneGeometry(30, 30, 80, 80);
-            const material = new THREE.MeshBasicMaterial({
-                color: 0x000000,
-                wireframe: true,
-                wireframeLinewidth: 1
-            });
-
-            plane = new THREE.Mesh(geometry, material);
-            plane.rotation.x = -Math.PI / 2;
-            scene.add(plane);
-
-            // Add some depth with additional planes
-            const bgMaterial = new THREE.MeshBasicMaterial({
-                color: 0x333333,
-                wireframe: true
-            });
-
-            for (let i = 1; i <= 3; i++) {
-                const bgPlane = new THREE.Mesh(
-                    new THREE.PlaneGeometry(30, 30, 40, 40),
-                    bgMaterial.clone()
-                );
-                bgPlane.rotation.x = -Math.PI / 2;
-                bgPlane.position.y = -i * 2;
-                bgPlane.material.opacity = 0.3 / i;
-                bgPlane.material.transparent = true;
-                scene.add(bgPlane);
-            }
-        }
-
-        function updateWave() {
-            if (!plane) return;
-
-            const positions = plane.geometry.attributes.position;
-            const vertex = new THREE.Vector3();
-
-            for (let i = 0; i < positions.count; i++) {
-                vertex.fromBufferAttribute(positions, i);
-
-                const x = vertex.x;
-                const y = vertex.y;
-
-                // Multiple wave layers for organic feel
-                let z = 0;
-                z += Math.sin(x * 0.3 + time) * config.waveHeight * 0.5;
-                z += Math.sin(y * 0.4 + time * 0.8) * config.waveHeight * 0.3;
-                z += Math.sin((x + y) * 0.2 + time * 1.2) * config.waveHeight * 0.4;
-                z += Math.sin(Math.sqrt(x * x + y * y) * 0.3 - time * 0.6) * config.waveHeight * 0.3;
-
-                positions.setZ(i, z);
-            }
-
-            positions.needsUpdate = true;
-            plane.geometry.computeVertexNormals();
-        }
-
-        function renderToAscii() {
-            renderer.render(scene, camera);
-
-            const gl = renderer.getContext();
-            const pixels = new Uint8Array(cols * rows * 4);
-            gl.readPixels(0, 0, cols, rows, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-
-            // Smooth mouse position
-            smoothMouse.x += (mouse.x - smoothMouse.x) * 0.12;
-            smoothMouse.y += (mouse.y - smoothMouse.y) * 0.12;
-
-            let ascii = '';
-            let hasHole = false;
-
-            // Calculate ASCII area bounds (accounting for margins)
-            const asciiStartX = config.margin.left;
-            const asciiStartY = config.margin.top;
-
-            for (let y = rows - 1; y >= 0; y--) {
-                for (let x = 0; x < cols; x++) {
-                    // Calculate screen position
-                    const screenX = asciiStartX + x * config.charWidth + config.charWidth / 2;
-                    const screenY = asciiStartY + (rows - 1 - y) * config.charHeight + config.charHeight / 2;
-
-                    // Distance from mouse
-                    const dx = screenX - smoothMouse.x;
-                    const dy = screenY - smoothMouse.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-
-                    // Mouse hole effect
-                    const holeAmount = isMouseActive ? Math.max(0, 1 - distance / config.mouseRadius) : 0;
-                    const smoothHole = holeAmount * holeAmount * holeAmount;
-
-                    if (smoothHole > 0.3) {
-                        hasHole = true;
-                    }
-
-                    if (smoothHole > 0.6) {
-                        ascii += ' ';
-                    } else {
-                        const i = (y * cols + x) * 4;
-                        const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
-
-                        // Pure white background = space (sky above horizon)
-                        if (brightness > 250) {
-                            ascii += ' ';
-                        } else {
-                            // Apply hole fade
-                            const adjustedBrightness = brightness + smoothHole * 200;
-
-                            // Map brightness to ASCII (invert so dark = dense chars)
-                            const charIndex = Math.floor((adjustedBrightness / 255) * (ASCII_CHARS.length - 1));
-                            ascii += ASCII_CHARS[Math.max(0, Math.min(ASCII_CHARS.length - 1, charIndex))];
-                        }
-                    }
-                }
-                ascii += '\n';
-            }
-
-            document.getElementById('ascii-output').textContent = ascii;
-
-            // Show/hide info layer
-            const infoLayer = document.getElementById('info-layer');
-            if (hasHole) {
-                infoLayer.classList.add('visible');
-            } else {
-                infoLayer.classList.remove('visible');
-            }
-        }
-
-        function resize() {
-            const container = document.getElementById('container');
-            renderWidth = container.clientWidth;
-            renderHeight = container.clientHeight;
-
-            cols = Math.floor(renderWidth / config.charWidth);
-            rows = Math.floor(renderHeight / config.charHeight);
-
-            if (renderer) {
-                renderer.setSize(cols, rows);
-
-                const aspect = cols / rows;
-                const frustumSize = 20;
-                camera.left = -frustumSize * aspect / 2;
-                camera.right = frustumSize * aspect / 2;
-                camera.top = frustumSize / 2;
-                camera.bottom = -frustumSize / 2;
-                camera.updateProjectionMatrix();
-            }
-        }
-
-        function animate() {
-            time += 0.015 * config.waveSpeed;
-
-            updateWave();
-            renderToAscii();
-
-            requestAnimationFrame(animate);
-        }
-
         function init() {
             resize();
-            initThree();
-
-            window.addEventListener('resize', () => {
-                resize();
-            });
+            window.addEventListener('resize', resize);
 
             document.addEventListener('mousemove', (e) => {
                 mouse.x = e.clientX;
@@ -394,6 +192,188 @@
             });
 
             animate();
+        }
+
+        function resize() {
+            const container = document.getElementById('container');
+            cols = Math.floor(container.clientWidth / config.charWidth);
+            rows = Math.floor(container.clientHeight / config.charHeight);
+        }
+
+        // Great Wave shape function
+        function getWaveHeight(x, t) {
+            const nx = x / cols;
+
+            // Main wave crest (the big curl)
+            const mainWavePeak = 0.35;
+            const mainWaveWidth = 0.25;
+            const distFromPeak = Math.abs(nx - mainWavePeak);
+
+            // Main wave shape - tall peak that curls over
+            let mainWave = Math.exp(-distFromPeak * distFromPeak / (mainWaveWidth * mainWaveWidth)) * 0.85;
+
+            // Add the curl at the top
+            if (nx > 0.2 && nx < 0.5) {
+                const curlFactor = Math.sin((nx - 0.2) * Math.PI / 0.3);
+                mainWave += curlFactor * 0.15 * Math.exp(-distFromPeak * 8);
+            }
+
+            // Secondary wave (smaller, to the right)
+            const secondPeak = 0.7;
+            const distFromSecond = Math.abs(nx - secondPeak);
+            const secondWave = Math.exp(-distFromSecond * distFromSecond / 0.04) * 0.45;
+
+            // Third smaller wave
+            const thirdPeak = 0.85;
+            const distFromThird = Math.abs(nx - thirdPeak);
+            const thirdWave = Math.exp(-distFromThird * distFromThird / 0.02) * 0.25;
+
+            // Combine waves
+            let height = Math.max(mainWave, secondWave, thirdWave);
+
+            // Add animated ripples
+            height += Math.sin(nx * 20 + t * 2) * 0.02;
+            height += Math.sin(nx * 35 - t * 1.5) * 0.015;
+
+            // Base ocean level
+            height = Math.max(height, 0.08 + Math.sin(nx * 8 + t) * 0.02);
+
+            return height;
+        }
+
+        // Foam/spray pattern
+        function getFoamIntensity(x, y, t) {
+            const nx = x / cols;
+            const ny = y / rows;
+
+            // Foam at wave crests
+            const waveHeight = getWaveHeight(x, t);
+            const normalizedY = 1 - ny;
+
+            // Only show foam near the wave surface
+            const distFromSurface = Math.abs(normalizedY - waveHeight);
+
+            if (distFromSurface < 0.05 && normalizedY <= waveHeight + 0.02) {
+                // Spray particles at the curl
+                if (nx > 0.25 && nx < 0.5 && normalizedY > 0.6) {
+                    const spray = Math.sin(x * 3 + y * 2 + t * 5) * 0.5 + 0.5;
+                    const sprayNoise = Math.sin(x * 7.3 + t * 3) * Math.cos(y * 5.1 - t * 2);
+                    if (sprayNoise > 0.3 + spray * 0.3) {
+                        return 0.9;
+                    }
+                }
+                return 0.7 + Math.sin(x * 5 + t * 3) * 0.2;
+            }
+
+            return 0;
+        }
+
+        // Get wave density at a point
+        function getWaveDensity(x, y, t) {
+            const nx = x / cols;
+            const ny = y / rows;
+            const normalizedY = 1 - ny; // Flip Y so 0 is bottom
+
+            const waveHeight = getWaveHeight(x, t);
+
+            // Sky (above wave)
+            if (normalizedY > waveHeight + 0.03) {
+                // Add some spray particles in the sky near the main wave
+                if (nx > 0.2 && nx < 0.55 && normalizedY < waveHeight + 0.2) {
+                    const sprayChance = Math.sin(x * 11 + y * 7 + t * 4) * Math.cos(x * 13 - t * 3);
+                    if (sprayChance > 0.7) {
+                        return 0.3 + Math.random() * 0.2;
+                    }
+                }
+                return 0;
+            }
+
+            // Wave body
+            if (normalizedY <= waveHeight) {
+                // Distance from surface (for shading)
+                const depth = waveHeight - normalizedY;
+
+                // Base density increases with depth
+                let density = 0.3 + depth * 2;
+
+                // Add wave texture/lines
+                const waveLines = Math.sin(nx * 40 + normalizedY * 30 + t * 0.5);
+                density += waveLines * 0.15;
+
+                // Foam at the top
+                if (depth < 0.05) {
+                    const foam = getFoamIntensity(x, y, t);
+                    density = Math.max(density, foam);
+                }
+
+                // Curl detail
+                if (nx > 0.28 && nx < 0.45 && normalizedY > 0.5) {
+                    const curlDetail = Math.sin((nx - 0.28) * 50 + normalizedY * 20 + t);
+                    density += curlDetail * 0.2;
+                }
+
+                return Math.min(1, Math.max(0, density));
+            }
+
+            return 0;
+        }
+
+        function animate() {
+            time += 0.016 * config.waveSpeed;
+
+            // Smooth mouse
+            smoothMouse.x += (mouse.x - smoothMouse.x) * 0.1;
+            smoothMouse.y += (mouse.y - smoothMouse.y) * 0.1;
+
+            const container = document.getElementById('container');
+            const rect = container.getBoundingClientRect();
+
+            let ascii = '';
+            let hasHole = false;
+
+            for (let y = 0; y < rows; y++) {
+                for (let x = 0; x < cols; x++) {
+                    const screenX = rect.left + x * config.charWidth + config.charWidth / 2;
+                    const screenY = rect.top + y * config.charHeight + config.charHeight / 2;
+
+                    // Mouse hole
+                    const dx = screenX - smoothMouse.x;
+                    const dy = screenY - smoothMouse.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const holeAmount = isMouseActive ? Math.max(0, 1 - distance / config.mouseRadius) : 0;
+                    const smoothHole = holeAmount * holeAmount * holeAmount;
+
+                    if (smoothHole > 0.3) hasHole = true;
+
+                    if (smoothHole > 0.5) {
+                        ascii += ' ';
+                    } else {
+                        let density = getWaveDensity(x, y, time);
+
+                        // Apply hole fade
+                        density *= (1 - smoothHole);
+
+                        if (density < 0.05) {
+                            ascii += ' ';
+                        } else {
+                            const charIndex = Math.floor(density * (ASCII_CHARS.length - 1));
+                            ascii += ASCII_CHARS[Math.min(ASCII_CHARS.length - 1, charIndex)];
+                        }
+                    }
+                }
+                ascii += '\n';
+            }
+
+            document.getElementById('ascii-output').textContent = ascii;
+
+            const infoLayer = document.getElementById('info-layer');
+            if (hasHole) {
+                infoLayer.classList.add('visible');
+            } else {
+                infoLayer.classList.remove('visible');
+            }
+
+            requestAnimationFrame(animate);
         }
 
         init();
